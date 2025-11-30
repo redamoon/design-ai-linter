@@ -31,12 +31,15 @@ export const Button: React.FC<ButtonProps> = ({
     fontWeight: 500,
     transition: 'all 0.2s',
     marginTop: '10px', // 警告: 生の値 10px を使用
+    marginBottom: '15px', // 警告: 生の値 15px を使用
+    paddingLeft: '20px', // 警告: 生の値 20px を使用
   };
 
   const variantStyles: Record<string, React.CSSProperties> = {
     primary: {
       backgroundColor: '#0ea5e9',
       color: '#ffffff',
+      borderColor: '#0066cc', // 警告: 生の値 #0066cc を使用
     },
     secondary: {
       backgroundColor: '#8b5cf6',
