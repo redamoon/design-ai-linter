@@ -41,76 +41,148 @@ function parseMarkdownReport(mdPath) {
     const content = fs.readFileSync(mdPath, 'utf8');
     const errors = [];
     
-    // マークダウンのパターンを解析
-    // ファイルパス、行番号、エラーメッセージを抽出
-    const filePattern = /^##?\s+(.+?\.(?:tsx?|css|jsx?|json))$/;
-    const errorLinePattern = /^[-*]\s*(Error|Warning|Info|エラー|警告|情報)[:\s]+(.+?)(?:at\s+line\s+(\d+)|行\s+(\d+))?/i;
-    const linePattern = /(?:line|行)\s*(\d+)/i;
+    // コンソール形式のエラーを抽出（[ERROR] や [WARN] で始まる行）
+    // 複数行にまたがる情報を正しく抽出するため、ブロック単位で解析
+    // エスケープシーケンスを除去
+    const cleanContent = content.replace(/\x1b\[[0-9;]*m/g, '');
+    const consoleErrorBlocks = cleanContent.match(/\[(ERROR|WARN|INFO)\][^\[]+(?=\n\[(?:ERROR|WARN|INFO)\]|$)/g) || [];
+    const consoleErrors = new Map(); // トークン名をキーにして重複を避ける
     
-    let currentFile = null;
-    const lines = content.split('\n');
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line) continue;
+    for (const block of consoleErrorBlocks) {
+      // 重要度を抽出
+      const severityMatch = block.match(/\[(ERROR|WARN|INFO)\]/);
+      if (!severityMatch) continue;
       
-      // ファイルパスの検出（## で始まる行）
-      const fileMatch = line.match(filePattern);
-      if (fileMatch && fileMatch[1]) {
-        currentFile = fileMatch[1].trim();
-        continue;
+      const severity = severityMatch[1].toLowerCase();
+      
+      // ルール名を抽出
+      const ruleMatch = block.match(/\[(?:ERROR|WARN|INFO)\]\s+([^:]+):/);
+      const rule = ruleMatch ? ruleMatch[1].trim() : null;
+      
+      // メッセージを抽出（最初の行）
+      const messageMatch = block.match(/\[(?:ERROR|WARN|INFO)\]\s+[^:]+:\s*(.+?)(?:\n|$)/);
+      const message = messageMatch ? messageMatch[1].trim() : null;
+      
+      // トークン名を抽出（複数のパターンに対応）
+      let tokenName = null;
+      const tokenPatterns = [
+        /Token name\s+"([^"]+)"/,
+        /トークン[:\s]+([^\n\s]+)/,
+      ];
+      
+      for (const pattern of tokenPatterns) {
+        const tokenMatch = block.match(pattern);
+        if (tokenMatch) {
+          tokenName = tokenMatch[1].trim();
+          break;
+        }
       }
       
-      // エラーメッセージの検出（- で始まる行）
-      if (currentFile && line.trim().startsWith('-')) {
-        // Error: または Warning: で始まる行を検出
-        const errorMatch = line.match(/^[-*]\s*(Error|Warning|Info|エラー|警告|情報)[:\s]+(.+?)(?:\.|$)/i);
-        if (errorMatch) {
-          const severity = errorMatch[1].toLowerCase();
-          let message = errorMatch[2].trim();
-          
-          // 行番号を抽出
-          const lineMatch = line.match(linePattern);
-          const lineNumber = lineMatch ? parseInt(lineMatch[1]) : null;
-          
-          // ルール名を抽出
-          const rule = extractRuleName(line);
-          
-          errors.push({
-            file: currentFile,
-            line: lineNumber,
-            severity: severity.includes('error') || severity.includes('エラー') ? 'error' : 
-                     severity.includes('warn') || severity.includes('警告') ? 'warning' : 'info',
-            message: message,
+      // 提案を抽出
+      const suggestionMatch = block.match(/提案[:\s]+([^\n]+)/);
+      const suggestion = suggestionMatch ? suggestionMatch[1].trim() : null;
+      
+      if (rule && (tokenName || message)) {
+        const key = `${rule}:${tokenName || message}`;
+        if (!consoleErrors.has(key)) {
+          consoleErrors.set(key, {
+            file: 'tokens.json',
+            line: null,
+            severity: severity === 'error' ? 'error' : severity === 'warn' ? 'warning' : 'info',
+            message: message || (tokenName ? `Token name "${tokenName}" does not match pattern` : 'エラーが検出されました'),
             rule: rule,
+            token: tokenName,
+            suggestion: suggestion,
           });
         }
       }
     }
     
-    // より詳細なパターンマッチング（バッククォートやリンク形式）
-    const detailedPattern = /(?:`|\[)(.+?\.(?:tsx?|css|jsx?|json))(?::(\d+))?(?::(\d+))?[`\]]/g;
-    let match;
-    while ((match = detailedPattern.exec(content)) !== null) {
-      const [, file, line, column] = match;
-      if (!file) continue;
+    // マークダウン形式のエラーを抽出
+    const lines = content.split('\n');
+    let currentFile = 'tokens.json'; // デフォルトはtokens.json
+    let currentSeverity = null;
+    let currentRule = null;
+    let currentMessage = null;
+    let currentToken = null;
+    let currentSuggestion = null;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
       
-      const contextStart = Math.max(0, match.index - 200);
-      const contextEnd = Math.min(content.length, match.index + 200);
-      const context = content.substring(contextStart, contextEnd);
+      // ファイルパスの検出（#### で始まる行）
+      const fileMatch = line.match(/^####\s+[📄\s]*(.+?)$/);
+      if (fileMatch) {
+        const fileName = fileMatch[1].trim();
+        if (fileName !== 'Unknown' && fileName.match(/\.(tsx?|css|jsx?|json)$/)) {
+          currentFile = fileName;
+        }
+        continue;
+      }
       
-      // エラーメッセージを抽出
-      const messageMatch = context.match(/(?:Error|Warning|エラー|警告)[:\s]+(.+?)(?:\.|$)/i);
+      // エラー/警告/情報の検出（❌, ⚠️, ℹ️ で始まる行）
+      const severityMatch = line.match(/^(❌|⚠️|ℹ️)\s+\*\*([^*]+)\*\*/);
+      if (severityMatch) {
+        const icon = severityMatch[1];
+        currentRule = severityMatch[2].trim();
+        currentSeverity = icon === '❌' ? 'error' : icon === '⚠️' ? 'warning' : 'info';
+        currentMessage = null;
+        currentToken = null;
+        currentSuggestion = null;
+        continue;
+      }
       
-      if (!errors.find(e => e.file === file.trim() && e.line === (line ? parseInt(line) : null))) {
-        errors.push({
-          file: file.trim(),
-          line: line ? parseInt(line) : null,
-          column: column ? parseInt(column) : null,
-          severity: context.match(/error/i) ? 'error' : context.match(/warning|warn/i) ? 'warning' : 'info',
-          message: messageMatch && messageMatch[1] ? messageMatch[1].trim() : 'エラーが検出されました',
-          rule: extractRuleName(context || ''),
-        });
+      // 問題、理由、提案の抽出
+      if (currentRule) {
+        const problemMatch = line.match(/^-\s+\*\*問題\*\*:\s*(.+)$/);
+        if (problemMatch) {
+          currentMessage = problemMatch[1].trim();
+          continue;
+        }
+        
+        const suggestionMatch = line.match(/^-\s+\*\*提案\*\*:\s*(.+)$/);
+        if (suggestionMatch) {
+          currentSuggestion = suggestionMatch[1].trim();
+          // この時点でエラーを追加
+          const tokenMatch = currentMessage ? currentMessage.match(/`([^`]+)`/) : null;
+          const token = tokenMatch ? tokenMatch[1] : null;
+          
+          errors.push({
+            file: currentFile,
+            line: null,
+            severity: currentSeverity,
+            message: currentMessage || currentRule,
+            rule: currentRule,
+            token: token || currentToken,
+            suggestion: currentSuggestion,
+          });
+          
+          // リセット
+          currentRule = null;
+          currentMessage = null;
+          currentToken = null;
+          currentSuggestion = null;
+          continue;
+        }
+        
+        // 提案行がない場合でも、トークン名があれば追加
+        const tokenMatch = line.match(/`([^`]+)`/);
+        if (tokenMatch && currentRule && !currentToken) {
+          currentToken = tokenMatch[1];
+        }
+      }
+    }
+    
+    // コンソール形式のエラーも追加（重複を避ける）
+    for (const [key, error] of consoleErrors) {
+      const exists = errors.find(e => 
+        e.rule === error.rule && 
+        e.token === error.token &&
+        e.file === error.file
+      );
+      if (!exists) {
+        errors.push(error);
       }
     }
     
@@ -204,18 +276,24 @@ function formatErrorsForPR(errors) {
   
   for (const [file, fileErrors] of Object.entries(grouped)) {
     markdown += `#### \`${file}\`\n\n`;
-    markdown += '| 行 | 重要度 | ルール | メッセージ |\n';
-    markdown += '|----|--------|--------|------------|\n';
+    markdown += '| 重要度 | ルール | トークン/問題 | メッセージ | 提案 |\n';
+    markdown += '|--------|--------|--------------|------------|------|\n';
     
     for (const err of fileErrors) {
-      const line = err.line ? `${err.line}` : '-';
       const severity = (err.severity || 'error').toLowerCase();
       const severityIcon = severity.includes('error') ? '❌' : severity.includes('warn') ? '⚠️' : 'ℹ️';
       const severityLabel = severity.includes('error') ? 'エラー' : severity.includes('warn') ? '警告' : '情報';
       const rule = err.rule || '-';
-      const message = (err.message || 'エラーが検出されました').replace(/\|/g, '\\|');
+      const token = err.token ? `\`${err.token}\`` : '-';
+      let message = (err.message || 'エラーが検出されました');
+      // メッセージが長すぎる場合は切り詰める
+      if (message.length > 100) {
+        message = message.substring(0, 97) + '...';
+      }
+      message = message.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      const suggestion = err.suggestion ? err.suggestion.replace(/\|/g, '\\|').replace(/\n/g, ' ') : '-';
       
-      markdown += `| ${line} | ${severityIcon} ${severityLabel} | ${rule} | ${message} |\n`;
+      markdown += `| ${severityIcon} ${severityLabel} | ${rule} | ${token} | ${message} | ${suggestion} |\n`;
     }
     
     markdown += '\n';

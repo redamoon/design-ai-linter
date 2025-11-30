@@ -51,6 +51,8 @@ p {
   margin: 0 auto;
   padding: 24px 32px;
   gap: 20px; /* 警告: 生の値 20px を使用 */
+  border-width: 2px; /* 警告: 生の値 2px を使用 */
+  min-height: 100vh; /* 警告: 生の値 100vh を使用 */
 }
 
 .card {
@@ -89,5 +91,13 @@ p {
 
 .button-secondary:hover {
   background-color: #7c3aed;
+}
+
+.new-component {
+  background-color: #ff6b6b; /* 警告: 生の値 #ff6b6b を使用 */
+  padding: 18px 22px; /* 警告: 生の値 18px, 22px を使用 */
+  font-size: 17px; /* 警告: 生の値 17px を使用 */
+  border-radius: 10px; /* 警告: 生の値 10px を使用 */
+  margin: 14px; /* 警告: 生の値 14px を使用 */
 }
 
