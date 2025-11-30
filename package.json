@@ -7,7 +7,8 @@
     "lint": "npx @design-tools/design-ai-linter lint",
     "fix": "npx @design-tools/design-ai-linter fix",
     "lint:staged": "npx @design-tools/design-ai-linter lint --staged",
-    "lint:all": "npx @design-tools/design-ai-linter lint --files \"src/**/*.{tsx,css,ts}\""
+    "lint:all": "npx @design-tools/design-ai-linter lint --files \"src/**/*.{tsx,css,ts}\"",
+    "postinstall": "node -e \"if (process.env.VOLTA_SKIP_PNPM_SHIM !== '1' && process.env.npm_execpath && process.env.npm_execpath.includes('volta')) { console.log('⚠️  Volta detected. If pnpm fails, use: npm install or VOLTA_SKIP_PNPM_SHIM=1 pnpm install'); }\""
   },
   "keywords": [
     "design-system",

@@ -19,11 +19,31 @@ design-ai-linterを使用したデザインチェックのサンプルリポジ�
 pnpm install
 ```
 
-**注意**: Voltaを使用している場合、pnpmのshimスクリプトでエラーが発生する可能性があります。その場合は、以下のいずれかの方法を試してください：
+**注意**: Voltaを使用している場合、pnpmのshimスクリプトで`ERR_INVALID_THIS`エラーが発生する可能性があります。これは既知の問題です。以下の解決策があります：
 
-- `npm install`を使用する（推奨、`package-lock.json`は自動的に`.gitignore`で除外されます）
-- Voltaのpnpmバージョンを更新: `volta install pnpm@8.0.0`
-- 環境変数でshimを無効化: `VOLTA_SKIP_PNPM_SHIM=1 pnpm install`
+### 推奨解決策
+
+1. **npmを使用する（最も簡単）**: 
+   ```bash
+   npm install
+   ```
+   `package-lock.json`は自動的に`.gitignore`で除外されます。
+
+2. **環境変数でshimを無効化**:
+   ```bash
+   VOLTA_SKIP_PNPM_SHIM=1 pnpm install
+   ```
+
+3. **pnpmを直接インストール**（Voltaのshimをバイパス）:
+   ```bash
+   npm install -g pnpm@8.0.0
+   # その後、グローバルにインストールされたpnpmが優先されます
+   pnpm install
+   ```
+
+### 根本原因
+
+Volta 1.1.1のshimスクリプトとpnpm 8.0.0の間で、URLSearchParamsの扱いに関する互換性の問題があります。Voltaの更新やpnpmの直接インストールで回避できます。
 
 ### 2. 環境変数の設定（AI機能を使用する場合）
 
