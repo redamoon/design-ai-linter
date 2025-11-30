@@ -19,7 +19,11 @@ design-ai-linterを使用したデザインチェックのサンプルリポジ�
 pnpm install
 ```
 
-**注意**: Voltaを使用している場合、`pnpm install`でエラーが発生する場合は、`npm install`を使用してください（`package-lock.json`は自動的に`.gitignore`で除外されます）。
+**注意**: Voltaを使用している場合、pnpmのshimスクリプトでエラーが発生する可能性があります。その場合は、以下のいずれかの方法を試してください：
+
+- `npm install`を使用する（推奨、`package-lock.json`は自動的に`.gitignore`で除外されます）
+- Voltaのpnpmバージョンを更新: `volta install pnpm@8.0.0`
+- 環境変数でshimを無効化: `VOLTA_SKIP_PNPM_SHIM=1 pnpm install`
 
 ### 2. 環境変数の設定（AI機能を使用する場合）
 
