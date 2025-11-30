@@ -79,8 +79,7 @@ GitHub Actionsが設定されており、プッシュやプルリクエスト時
 
 GitHubリポジトリのSettings > Secrets and variables > Actionsで、以下のシークレットを設定してください：
 
-- `OPENAI_API_KEY`: OpenAI APIキー（OpenAIを使用する場合）
-- `GEMINI_API_KEY`: Gemini APIキー（Geminiを使用する場合）
+- `GEMINI_API_KEY`: Gemini APIキー（必須）
 
 ## 参考
 
